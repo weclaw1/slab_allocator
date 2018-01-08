@@ -1,13 +1,13 @@
 use core::ptr::Unique;
 use core::mem;
 use core::marker::PhantomData;
-use alloc::allocator::{Layout, AllocErr};
+use alloc::allocator::{AllocErr, Layout};
 
 pub struct Slab {
     start_addr: usize,
     slab_size: usize,
     block_size: usize,
-    free_block_list: FreeBlockList, 
+    free_block_list: FreeBlockList,
 }
 
 impl Slab {
@@ -43,7 +43,7 @@ impl Slab {
 
     pub fn contains_addr(&self, addr: usize) -> bool {
         if addr >= self.start_addr && addr < self.start_addr + self.slab_size {
-            return true
+            return true;
         }
         false
     }
@@ -51,35 +51,43 @@ impl Slab {
     pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
         match self.free_block_list.pop_front() {
             Some(block) => Ok(block.as_ptr() as *mut u8),
-            None => Err(AllocErr::Exhausted { request: layout })
+            None => Err(AllocErr::Exhausted { request: layout }),
         }
     }
 
-    pub fn allocate_multiple(&mut self, layout: Layout, num_of_blocks: usize) -> Result<*mut u8, AllocErr> {
+    pub fn allocate_multiple(
+        &mut self,
+        layout: Layout,
+        num_of_blocks: usize,
+    ) -> Result<*mut u8, AllocErr> {
         if num_of_blocks == 1 {
-            return self.allocate(layout)
+            return self.allocate(layout);
         }
-        match self.free_block_list.find_adjacent(self.block_size, num_of_blocks) {
+        match self.free_block_list
+            .find_adjacent(self.block_size, num_of_blocks)
+        {
             Some(index) => {
                 let removed = self.free_block_list.remove(index, num_of_blocks);
                 Ok(removed.head.unwrap().as_ptr() as *mut u8)
-            },
-            None => Err(AllocErr::Exhausted { request: layout })
+            }
+            None => Err(AllocErr::Exhausted { request: layout }),
         }
     }
 
     pub fn deallocate(&mut self, ptr: *mut u8) {
-        self.free_block_list.push_front(unsafe { Unique::new_unchecked(ptr as *mut FreeBlock) } );
+        self.free_block_list
+            .push_front(unsafe { Unique::new_unchecked(ptr as *mut FreeBlock) });
     }
 
     pub fn deallocate_multiple(&mut self, ptr: *mut u8, num_of_blocks: usize) {
         let mut new_block_list = FreeBlockList::new_empty();
         for i in 0..num_of_blocks {
-            new_block_list.push_back(unsafe { Unique::new_unchecked((ptr as usize + i * self.block_size) as *mut FreeBlock) });
+            new_block_list.push_back(unsafe {
+                Unique::new_unchecked((ptr as usize + i * self.block_size) as *mut FreeBlock)
+            });
         }
         self.free_block_list.insert_sorted(new_block_list);
     }
-
 }
 
 struct FreeBlockList {
@@ -106,7 +114,9 @@ impl FreeBlockList {
     unsafe fn new(start_addr: usize, block_size: usize, num_of_blocks: usize) -> FreeBlockList {
         let mut new_list = FreeBlockList::new_empty();
         for i in 0..num_of_blocks {
-            new_list.push_back(Unique::new_unchecked((start_addr + i * block_size) as *mut FreeBlock));
+            new_list.push_back(Unique::new_unchecked(
+                (start_addr + i * block_size) as *mut FreeBlock,
+            ));
         }
         new_list
     }
@@ -194,16 +204,12 @@ impl FreeBlockList {
 
     #[inline]
     fn front(&self) -> Option<&FreeBlock> {
-        unsafe {
-            self.head.as_ref().map(|node| node.as_ref())
-        }
+        unsafe { self.head.as_ref().map(|node| node.as_ref()) }
     }
 
     #[inline]
     fn back(&self) -> Option<&FreeBlock> {
-        unsafe {
-            self.tail.as_ref().map(|node| node.as_ref())
-        }
+        unsafe { self.tail.as_ref().map(|node| node.as_ref()) }
     }
 
     pub fn append(&mut self, other: &mut Self) {
@@ -293,8 +299,8 @@ impl FreeBlockList {
             marker: PhantomData,
         }
     }
-    
-    fn find_adjacent(&self, block_size:usize, num_of_blocks: usize) -> Option<usize> {
+
+    fn find_adjacent(&self, block_size: usize, num_of_blocks: usize) -> Option<usize> {
         if self.len >= num_of_blocks {
             let mut current_block_index: usize = 0;
             let mut first_block_index: usize = 0;
@@ -302,7 +308,7 @@ impl FreeBlockList {
             if num_of_blocks == 1 {
                 return Some(first_block_index);
             }
-            for(current_block, next_block) in self.iter().zip(self.iter().skip(1)) {
+            for (current_block, next_block) in self.iter().zip(self.iter().skip(1)) {
                 if current_block.addr() + block_size == next_block.addr() {
                     adjacent += 1;
                 } else {
@@ -335,12 +341,13 @@ impl FreeBlockList {
                     return;
                 }
             }
-            for(current_block, next_block) in self.iter().zip(self.iter().skip(1)) {
-                if free_blocks.front().unwrap().addr() > current_block.addr() && 
-                   free_blocks.back().unwrap().addr() < next_block.addr() {
-                       split_index = Some(current_block_index + 1);
-                       break;
-                   }
+            for (current_block, next_block) in self.iter().zip(self.iter().skip(1)) {
+                if free_blocks.front().unwrap().addr() > current_block.addr()
+                    && free_blocks.back().unwrap().addr() < next_block.addr()
+                {
+                    split_index = Some(current_block_index + 1);
+                    break;
+                }
 
                 current_block_index += 1;
             }
@@ -349,8 +356,8 @@ impl FreeBlockList {
                     let mut after_inserted = self.split_off(index);
                     self.append(&mut free_blocks);
                     self.append(&mut after_inserted);
-                },
-                None => self.append(&mut free_blocks)
+                }
+                None => self.append(&mut free_blocks),
             }
         }
     }

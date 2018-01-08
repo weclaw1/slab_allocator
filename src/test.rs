@@ -1,4 +1,4 @@
-use core::mem::{size_of, align_of};
+use core::mem::{align_of, size_of};
 use alloc::allocator::Layout;
 use super::*;
 
@@ -16,7 +16,9 @@ struct TestBigHeap {
 }
 
 fn new_heap() -> Heap {
-    let test_heap = TestHeap{heap_space: [0u8; HEAP_SIZE]};
+    let test_heap = TestHeap {
+        heap_space: [0u8; HEAP_SIZE],
+    };
     let heap = unsafe { Heap::new(&test_heap.heap_space[0] as *const u8 as usize, HEAP_SIZE) };
     assert!(heap.start_addr() == &test_heap.heap_space[0] as *const u8 as usize);
     assert!(heap.size() == HEAP_SIZE);
@@ -24,8 +26,15 @@ fn new_heap() -> Heap {
 }
 
 fn new_big_heap() -> Heap {
-    let test_heap = TestBigHeap{heap_space: [0u8; BIG_HEAP_SIZE]};
-    let heap = unsafe { Heap::new(&test_heap.heap_space[0] as *const u8 as usize, BIG_HEAP_SIZE) };
+    let test_heap = TestBigHeap {
+        heap_space: [0u8; BIG_HEAP_SIZE],
+    };
+    let heap = unsafe {
+        Heap::new(
+            &test_heap.heap_space[0] as *const u8 as usize,
+            BIG_HEAP_SIZE,
+        )
+    };
     assert!(heap.start_addr() == &test_heap.heap_space[0] as *const u8 as usize);
     assert!(heap.size() == BIG_HEAP_SIZE);
     heap
@@ -92,7 +101,6 @@ fn allocate_multiple_sizes() {
     let mut heap = new_heap();
     let base_size = size_of::<usize>();
     let base_align = align_of::<usize>();
-
 
     let layout_1 = Layout::from_size_align(base_size * 2, base_align).unwrap();
     let layout_2 = Layout::from_size_align(base_size * 3, base_align).unwrap();

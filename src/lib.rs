@@ -14,7 +14,7 @@ mod slab;
 use core::ops::Deref;
 
 use slab::Slab;
-use alloc::allocator::{Alloc, Layout, AllocErr};
+use alloc::allocator::{Alloc, AllocErr, Layout};
 
 use spin::Mutex;
 
@@ -43,9 +43,18 @@ impl Heap {
     /// anything else. This function is unsafe because it can cause undefined behavior if the
     /// given address is invalid.
     pub unsafe fn new(heap_start_addr: usize, heap_size: usize) -> Heap {
-        assert!(heap_start_addr % 4096 == 0, "Start address should be page aligned");
-        assert!(heap_size >= MIN_HEAP_SIZE, "Heap size should be greater or equal to minimum heap size");
-        assert!(heap_size % MIN_HEAP_SIZE == 0, "Heap size should be a multiple of minimum heap size");
+        assert!(
+            heap_start_addr % 4096 == 0,
+            "Start address should be page aligned"
+        );
+        assert!(
+            heap_size >= MIN_HEAP_SIZE,
+            "Heap size should be greater or equal to minimum heap size"
+        );
+        assert!(
+            heap_size % MIN_HEAP_SIZE == 0,
+            "Heap size should be a multiple of minimum heap size"
+        );
         let slab_size = heap_size / NUM_OF_SLABS;
         Heap {
             slab_32_bytes: Slab::new(heap_start_addr, slab_size, 32),
@@ -67,21 +76,36 @@ impl Heap {
     pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
         if layout.size() <= 32 && layout.align() <= 32 && self.slab_32_bytes.free_blocks() > 0 {
             self.slab_32_bytes.allocate(layout)
-        } else if layout.size() <= 64 && layout.align() <= 64 && self.slab_64_bytes.free_blocks() > 0 {
+        } else if layout.size() <= 64 && layout.align() <= 64
+            && self.slab_64_bytes.free_blocks() > 0
+        {
             self.slab_64_bytes.allocate(layout)
-        } else if layout.size() <= 128 && layout.align() <= 128 && self.slab_128_bytes.free_blocks() > 0 {
+        } else if layout.size() <= 128 && layout.align() <= 128
+            && self.slab_128_bytes.free_blocks() > 0
+        {
             self.slab_128_bytes.allocate(layout)
-        } else if layout.size() <= 256 && layout.align() <= 256 && self.slab_256_bytes.free_blocks() > 0 {
+        } else if layout.size() <= 256 && layout.align() <= 256
+            && self.slab_256_bytes.free_blocks() > 0
+        {
             self.slab_256_bytes.allocate(layout)
-        } else if layout.size() <= 512 && layout.align() <= 512 && self.slab_512_bytes.free_blocks() > 0 {
+        } else if layout.size() <= 512 && layout.align() <= 512
+            && self.slab_512_bytes.free_blocks() > 0
+        {
             self.slab_512_bytes.allocate(layout)
-        } else if layout.size() <= 1024 && layout.align() <= 1024 && self.slab_1024_bytes.free_blocks() > 0 {
+        } else if layout.size() <= 1024 && layout.align() <= 1024
+            && self.slab_1024_bytes.free_blocks() > 0
+        {
             self.slab_1024_bytes.allocate(layout)
-        } else if layout.size() <= 2048 && layout.align() <= 2048 && self.slab_2048_bytes.free_blocks() > 0 {
+        } else if layout.size() <= 2048 && layout.align() <= 2048
+            && self.slab_2048_bytes.free_blocks() > 0
+        {
             self.slab_2048_bytes.allocate(layout)
-        } else if layout.align() <= 4096 && self.slab_4096_bytes.free_blocks() >= num_of_blocks(layout.size(), 4096) {
+        } else if layout.align() <= 4096
+            && self.slab_4096_bytes.free_blocks() >= num_of_blocks(layout.size(), 4096)
+        {
             let layout_size = layout.size();
-            self.slab_4096_bytes.allocate_multiple(layout, num_of_blocks(layout_size, 4096))
+            self.slab_4096_bytes
+                .allocate_multiple(layout, num_of_blocks(layout_size, 4096))
         } else {
             Err(AllocErr::Exhausted { request: layout })
         }
@@ -111,7 +135,8 @@ impl Heap {
         } else if self.slab_2048_bytes.contains_addr(ptr_addr) {
             self.slab_2048_bytes.deallocate(ptr)
         } else {
-            self.slab_4096_bytes.deallocate_multiple(ptr, num_of_blocks(layout.size(), 4096))
+            self.slab_4096_bytes
+                .deallocate_multiple(ptr, num_of_blocks(layout.size(), 4096))
         }
     }
 
@@ -152,7 +177,6 @@ impl Heap {
     pub fn end_addr(&self) -> usize {
         self.start_addr() + self.size()
     }
-
 }
 
 unsafe impl Alloc for Heap {
@@ -168,7 +192,7 @@ unsafe impl Alloc for Heap {
         panic!("Out of memory");
     }
 
-    fn usable_size(&self, layout: &Layout) -> (usize, usize) { 
+    fn usable_size(&self, layout: &Layout) -> (usize, usize) {
         self.usable_size(layout)
     }
 }
@@ -176,7 +200,6 @@ unsafe impl Alloc for Heap {
 pub struct LockedHeap(Mutex<Option<Heap>>);
 
 impl LockedHeap {
-
     pub const fn empty() -> LockedHeap {
         LockedHeap(Mutex::new(None))
     }
@@ -219,7 +242,7 @@ unsafe impl<'a> Alloc for &'a LockedHeap {
         }
     }
 
-    fn usable_size(&self, layout: &Layout) -> (usize, usize) { 
+    fn usable_size(&self, layout: &Layout) -> (usize, usize) {
         if let Some(ref mut heap) = *self.0.lock() {
             heap.usable_size(layout)
         } else {
@@ -232,8 +255,7 @@ unsafe impl<'a> Alloc for &'a LockedHeap {
     }
 }
 
-
-/// Helper function used for finding the number of blocks 
+/// Helper function used for finding the number of blocks
 /// that have to be allocated
 fn num_of_blocks(chunk_size: usize, block_size: usize) -> usize {
     let mut blocks: usize = chunk_size / block_size;
