@@ -129,6 +129,7 @@ impl FreeBlockList {
         }
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.len
     }
@@ -335,11 +336,15 @@ impl FreeBlockList {
         if free_blocks.len > 0 {
             let mut current_block_index: usize = 0;
             let mut split_index: Option<usize> = None;
+            if free_blocks.front().unwrap().addr() > self.back().unwrap().addr() {
+                self.append(&mut free_blocks);
+                return;
+            }
             if free_blocks.back().unwrap().addr() < self.front().unwrap().addr() {
                 while let Some(block) = free_blocks.pop_back() {
                     self.push_front(block);
-                    return;
                 }
+                return;
             }
             for (current_block, next_block) in self.iter().zip(self.iter().skip(1)) {
                 if free_blocks.front().unwrap().addr() > current_block.addr()
@@ -351,13 +356,10 @@ impl FreeBlockList {
 
                 current_block_index += 1;
             }
-            match split_index {
-                Some(index) => {
-                    let mut after_inserted = self.split_off(index);
-                    self.append(&mut free_blocks);
-                    self.append(&mut after_inserted);
-                }
-                None => self.append(&mut free_blocks),
+            if let Some(index) = split_index {
+                let mut after_inserted = self.split_off(index);
+                self.append(&mut free_blocks);
+                self.append(&mut after_inserted);
             }
         }
     }
