@@ -27,7 +27,6 @@ pub const MIN_HEAP_SIZE: usize = NUM_OF_SLABS * MIN_SLAB_SIZE;
 
 /// A fixed size heap backed by multiple slabs with blocks of different sizes.
 pub struct Heap {
-    slab_32_bytes: Slab,
     slab_64_bytes: Slab,
     slab_128_bytes: Slab,
     slab_256_bytes: Slab,
@@ -35,6 +34,7 @@ pub struct Heap {
     slab_1024_bytes: Slab,
     slab_2048_bytes: Slab,
     slab_4096_bytes: Slab,
+    big_slab: Slab,
 }
 
 impl Heap {
@@ -57,14 +57,14 @@ impl Heap {
         );
         let slab_size = heap_size / NUM_OF_SLABS;
         Heap {
-            slab_32_bytes: Slab::new(heap_start_addr, slab_size, 32),
-            slab_64_bytes: Slab::new(heap_start_addr + slab_size, slab_size, 64),
-            slab_128_bytes: Slab::new(heap_start_addr + 2 * slab_size, slab_size, 128),
-            slab_256_bytes: Slab::new(heap_start_addr + 3 * slab_size, slab_size, 256),
-            slab_512_bytes: Slab::new(heap_start_addr + 4 * slab_size, slab_size, 512),
-            slab_1024_bytes: Slab::new(heap_start_addr + 5 * slab_size, slab_size, 1024),
-            slab_2048_bytes: Slab::new(heap_start_addr + 6 * slab_size, slab_size, 2048),
-            slab_4096_bytes: Slab::new(heap_start_addr + 7 * slab_size, slab_size, 4096),
+            slab_64_bytes: Slab::new(heap_start_addr, slab_size, 64),
+            slab_128_bytes: Slab::new(heap_start_addr + slab_size, slab_size, 128),
+            slab_256_bytes: Slab::new(heap_start_addr + 2 * slab_size, slab_size, 256),
+            slab_512_bytes: Slab::new(heap_start_addr + 3 * slab_size, slab_size, 512),
+            slab_1024_bytes: Slab::new(heap_start_addr + 4 * slab_size, slab_size, 1024),
+            slab_2048_bytes: Slab::new(heap_start_addr + 5 * slab_size, slab_size, 2048),
+            slab_4096_bytes: Slab::new(heap_start_addr + 6 * slab_size, slab_size, 4096),
+            big_slab: Slab::new_big(heap_start_addr + 7 * slab_size, slab_size),
         }
     }
 
@@ -74,40 +74,22 @@ impl Heap {
     /// The runtime is in `O(1)` for chunks of size <= 4096, and `O(n)` when chunk size is > 4096,
     /// because allocator has to find multiple free adjacent blocks in the slab with 4096 bytes blocks
     pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
-        if layout.size() <= 32 && layout.align() <= 32 && self.slab_32_bytes.free_blocks() > 0 {
-            self.slab_32_bytes.allocate(layout)
-        } else if layout.size() <= 64 && layout.align() <= 64
-            && self.slab_64_bytes.free_blocks() > 0
-        {
+        if layout.size() <= 64 && layout.align() <= 64 {
             self.slab_64_bytes.allocate(layout)
-        } else if layout.size() <= 128 && layout.align() <= 128
-            && self.slab_128_bytes.free_blocks() > 0
-        {
+        } else if layout.size() <= 128 && layout.align() <= 128 {
             self.slab_128_bytes.allocate(layout)
-        } else if layout.size() <= 256 && layout.align() <= 256
-            && self.slab_256_bytes.free_blocks() > 0
-        {
+        } else if layout.size() <= 256 && layout.align() <= 256 {
             self.slab_256_bytes.allocate(layout)
-        } else if layout.size() <= 512 && layout.align() <= 512
-            && self.slab_512_bytes.free_blocks() > 0
-        {
+        } else if layout.size() <= 512 && layout.align() <= 512 {
             self.slab_512_bytes.allocate(layout)
-        } else if layout.size() <= 1024 && layout.align() <= 1024
-            && self.slab_1024_bytes.free_blocks() > 0
-        {
+        } else if layout.size() <= 1024 && layout.align() <= 1024 {
             self.slab_1024_bytes.allocate(layout)
-        } else if layout.size() <= 2048 && layout.align() <= 2048
-            && self.slab_2048_bytes.free_blocks() > 0
-        {
+        } else if layout.size() <= 2048 && layout.align() <= 2048 {
             self.slab_2048_bytes.allocate(layout)
-        } else if layout.align() <= 4096
-            && self.slab_4096_bytes.free_blocks() >= num_of_blocks(layout.size(), 4096)
-        {
-            let layout_size = layout.size();
-            self.slab_4096_bytes
-                .allocate_multiple(layout, num_of_blocks(layout_size, 4096))
+        } else if layout.size() <= 4096 && layout.align() <= 4096 {
+            self.slab_4096_bytes.allocate(layout)
         } else {
-            Err(AllocErr::Exhausted { request: layout })
+            self.big_slab.allocate_big(layout)
         }
     }
 
@@ -119,24 +101,22 @@ impl Heap {
     /// with `ptr` address to the list of free blocks.
     /// This operation is in `O(1)` for blocks <= 2048 bytes and O(n) for blocks greater > 2048 bytes.
     pub unsafe fn deallocate(&mut self, ptr: *mut u8, layout: Layout) {
-        let ptr_addr = ptr as usize;
-        if self.slab_32_bytes.contains_addr(ptr_addr) {
-            self.slab_32_bytes.deallocate(ptr)
-        } else if self.slab_64_bytes.contains_addr(ptr_addr) {
+        if layout.size() <= 64 && layout.align() <= 64 {
             self.slab_64_bytes.deallocate(ptr)
-        } else if self.slab_128_bytes.contains_addr(ptr_addr) {
+        } else if layout.size() <= 128 && layout.align() <= 128 {
             self.slab_128_bytes.deallocate(ptr)
-        } else if self.slab_256_bytes.contains_addr(ptr_addr) {
+        } else if layout.size() <= 256 && layout.align() <= 256 {
             self.slab_256_bytes.deallocate(ptr)
-        } else if self.slab_512_bytes.contains_addr(ptr_addr) {
+        } else if layout.size() <= 512 && layout.align() <= 512 {
             self.slab_512_bytes.deallocate(ptr)
-        } else if self.slab_1024_bytes.contains_addr(ptr_addr) {
+        } else if layout.size() <= 1024 && layout.align() <= 1024 {
             self.slab_1024_bytes.deallocate(ptr)
-        } else if self.slab_2048_bytes.contains_addr(ptr_addr) {
+        } else if layout.size() <= 2048 && layout.align() <= 2048 {
             self.slab_2048_bytes.deallocate(ptr)
+        } else if layout.size() <= 4096 && layout.align() <= 4096 {
+            self.slab_4096_bytes.deallocate(ptr)
         } else {
-            self.slab_4096_bytes
-                .deallocate_multiple(ptr, num_of_blocks(layout.size(), 4096))
+            self.big_slab.deallocate_big(ptr, layout)
         }
     }
 
@@ -157,26 +137,13 @@ impl Heap {
             (layout.size(), 1024)
         } else if layout.size() <= 2048 {
             (layout.size(), 2048)
+        } else if layout.size() <= 4096 {
+            (layout.size(), 4096)
         } else {
-            let layout_size = layout.size();
-            (layout.size(), num_of_blocks(layout_size, 4096) * 4096)
+            (layout.size(), layout.size())
         }
     }
 
-    /// Returns the start address of the heap.
-    pub fn start_addr(&self) -> usize {
-        self.slab_32_bytes.start_addr()
-    }
-
-    /// Returns the size of the heap.
-    pub fn size(&self) -> usize {
-        self.slab_32_bytes.size() * NUM_OF_SLABS
-    }
-
-    /// Return the end address of the heap
-    pub fn end_addr(&self) -> usize {
-        self.start_addr() + self.size()
-    }
 }
 
 unsafe impl Alloc for Heap {
@@ -253,14 +220,4 @@ unsafe impl<'a> Alloc for &'a LockedHeap {
     fn oom(&mut self, _: AllocErr) -> ! {
         panic!("Out of memory");
     }
-}
-
-/// Helper function used for finding the number of blocks
-/// that have to be allocated
-fn num_of_blocks(chunk_size: usize, block_size: usize) -> usize {
-    let mut blocks: usize = chunk_size / block_size;
-    if chunk_size % block_size != 0 {
-        blocks += 1;
-    }
-    blocks
 }
