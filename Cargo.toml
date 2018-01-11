@@ -1,6 +1,6 @@
 [package]
 name = "slab_allocator"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Robert Węcławski <r.weclawski@gmail.com>"]
 license = "MIT"
 
@@ -10,4 +10,4 @@ keywords = ["slab", "allocator", "no_std", "heap", "kernel"]
 repository = "https://github.com/weclaw1/slab_allocator"
 
 [dependencies]
-spin = "0.4.4"
+spin = "0.4.6"
