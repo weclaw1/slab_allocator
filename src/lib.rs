@@ -72,7 +72,7 @@ impl Heap {
     /// The start address must be valid and the memory in the `[new_mem_start_addr, new_mem_start_addr + new_mem_size)` 
     /// range must not be used for anything else. This function is unsafe because it can cause undefined behavior if the
     /// given address is invalid.
-    pub unsafe fn grow(new_mem_start_addr: usize, new_mem_size: usize) {
+    pub unsafe fn grow(&mut self, new_mem_start_addr: usize, new_mem_size: usize) {
         assert!(
             new_mem_start_addr % 4096 == 0,
             "Start address should be page aligned"
@@ -86,14 +86,14 @@ impl Heap {
             "Memory size should be a multiple of minimum heap size"
         );
         let slab_size = new_mem_size / NUM_OF_SLABS;
-        slab_64_bytes.grow(heap_start_addr, slab_size);
-        slab_128_bytes.grow(heap_start_addr + slab_size, slab_size);
-        slab_256_bytes.grow(heap_start_addr + 2 * slab_size, slab_size);
-        slab_512_bytes.grow(heap_start_addr + 3 * slab_size, slab_size);
-        slab_1024_bytes.grow(heap_start_addr + 4 * slab_size, slab_size);
-        slab_2048_bytes.grow(heap_start_addr + 5 * slab_size, slab_size);
-        slab_4096_bytes.grow(heap_start_addr + 6 * slab_size, slab_size);
-        big_slab.grow_big(heap_start_addr + 7 * slab_size, slab_size);
+        self.slab_64_bytes.grow(new_mem_start_addr, slab_size);
+        self.slab_128_bytes.grow(new_mem_start_addr + slab_size, slab_size);
+        self.slab_256_bytes.grow(new_mem_start_addr + 2 * slab_size, slab_size);
+        self.slab_512_bytes.grow(new_mem_start_addr + 3 * slab_size, slab_size);
+        self.slab_1024_bytes.grow(new_mem_start_addr + 4 * slab_size, slab_size);
+        self.slab_2048_bytes.grow(new_mem_start_addr + 5 * slab_size, slab_size);
+        self.slab_4096_bytes.grow(new_mem_start_addr + 6 * slab_size, slab_size);
+        self.big_slab.grow_big(new_mem_start_addr + 7 * slab_size, slab_size);
     }
 
     /// Allocates a chunk of the given size with the given alignment. Returns a pointer to the

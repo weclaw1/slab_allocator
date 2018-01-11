@@ -37,7 +37,7 @@ impl Slab {
         }
     }
 
-    pub unsafe fn grow_big(&mut self, start_addr, slab_size: usize) {
+    pub unsafe fn grow_big(&mut self, start_addr: usize, slab_size: usize) {
         let mut big_block = Unique::new_unchecked(start_addr as *mut FreeBlock);
         big_block.as_mut().size = slab_size;
         self.big_slab_blocks += 1;
