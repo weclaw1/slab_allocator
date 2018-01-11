@@ -39,7 +39,7 @@ pub struct Heap {
 
 impl Heap {
     /// Creates a new heap with the given `heap_start_addr` and `heap_size`. The start address must be valid
-    /// and the memory in the `[heap_start_addr, heap_bottom + heap_size)` range must not be used for
+    /// and the memory in the `[heap_start_addr, heap_start_addr + heap_size)` range must not be used for
     /// anything else. This function is unsafe because it can cause undefined behavior if the
     /// given address is invalid.
     pub unsafe fn new(heap_start_addr: usize, heap_size: usize) -> Heap {
@@ -68,11 +68,38 @@ impl Heap {
         }
     }
 
+    /// Adds new memory to the heap with the given `new_mem_start_addr` and `new_mem_size`. 
+    /// The start address must be valid and the memory in the `[new_mem_start_addr, new_mem_start_addr + new_mem_size)` 
+    /// range must not be used for anything else. This function is unsafe because it can cause undefined behavior if the
+    /// given address is invalid.
+    pub unsafe fn grow(new_mem_start_addr: usize, new_mem_size: usize) {
+        assert!(
+            new_mem_start_addr % 4096 == 0,
+            "Start address should be page aligned"
+        );
+        assert!(
+            new_mem_size >= MIN_HEAP_SIZE,
+            "Memory size should be greater or equal to minimum heap size"
+        );
+        assert!(
+            new_mem_size % MIN_HEAP_SIZE == 0,
+            "Memory size should be a multiple of minimum heap size"
+        );
+        let slab_size = new_mem_size / NUM_OF_SLABS;
+        slab_64_bytes.grow(heap_start_addr, slab_size);
+        slab_128_bytes.grow(heap_start_addr + slab_size, slab_size);
+        slab_256_bytes.grow(heap_start_addr + 2 * slab_size, slab_size);
+        slab_512_bytes.grow(heap_start_addr + 3 * slab_size, slab_size);
+        slab_1024_bytes.grow(heap_start_addr + 4 * slab_size, slab_size);
+        slab_2048_bytes.grow(heap_start_addr + 5 * slab_size, slab_size);
+        slab_4096_bytes.grow(heap_start_addr + 6 * slab_size, slab_size);
+        big_slab.grow_big(heap_start_addr + 7 * slab_size, slab_size);
+    }
+
     /// Allocates a chunk of the given size with the given alignment. Returns a pointer to the
     /// beginning of that chunk if it was successful. Else it returns `Err`.
     /// This function finds the slab of lowest size which can still accomodate the given chunk.
     /// The runtime is in `O(1)` for chunks of size <= 4096, and `O(n)` when chunk size is > 4096,
-    /// because allocator has to find multiple free adjacent blocks in the slab with 4096 bytes blocks
     pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
         if layout.size() <= 64 && layout.align() <= 64 {
             self.slab_64_bytes.allocate(layout)
@@ -99,7 +126,7 @@ impl Heap {
     ///
     /// This function finds the slab which contains address of `ptr` and adds the blocks beginning
     /// with `ptr` address to the list of free blocks.
-    /// This operation is in `O(1)` for blocks <= 2048 bytes and O(n) for blocks greater > 2048 bytes.
+    /// This operation is in `O(1)` for blocks of all sizes.
     pub unsafe fn deallocate(&mut self, ptr: *mut u8, layout: Layout) {
         if layout.size() <= 64 && layout.align() <= 64 {
             self.slab_64_bytes.deallocate(ptr)
