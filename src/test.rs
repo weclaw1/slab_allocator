@@ -83,7 +83,7 @@ fn reallocate_double_usize() {
         heap.deallocate(y, layout.clone());
     }
 
-    assert_eq!(x as usize + 64, y as usize);
+    assert_eq!(x as usize, y as usize);
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn allocate_multiple_sizes() {
     let a = heap.allocate(layout_4.clone()).unwrap();
     let b = heap.allocate(layout_1.clone()).unwrap();
     assert_eq!(a as usize, x as usize + 4096);
-    assert_eq!(x as usize + 3 * 64, b as usize);
+    assert_eq!(x as usize, b as usize);
 
     unsafe {
         heap.deallocate(y, layout_2);
@@ -154,7 +154,7 @@ fn allocate_multiple_4096_blocks() {
 
     let a = heap.allocate(layout.clone()).unwrap();
     let b = heap.allocate(layout.clone()).unwrap();
-    assert_eq!(x as usize + 3 * 4096, a as usize);
+    assert_eq!(x as usize + 4096, a as usize);
 
     unsafe {
         heap.deallocate(a, layout.clone());
@@ -165,7 +165,7 @@ fn allocate_multiple_4096_blocks() {
     unsafe {
         *(c as *mut (usize, usize)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
     }
-    assert_eq!(a as usize + 7 * 4096, c as usize);
-    assert_eq!(b as usize + 4096, d as usize);
+    assert_eq!(a as usize + 9 * 4096, c as usize);
+    assert_eq!(b as usize - 4096, d as usize);
 
 }
