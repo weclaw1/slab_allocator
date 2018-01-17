@@ -29,14 +29,14 @@ pub const MIN_SLAB_SIZE: usize = 4096;
 pub const MIN_HEAP_SIZE: usize = NUM_OF_SLABS * MIN_SLAB_SIZE;
 
 pub enum HeapAllocator {
-    slab_64_bytes,
-    slab_128_bytes,
-    slab_256_bytes,
-    slab_512_bytes,
-    slab_1024_bytes,
-    slab_2048_bytes,
-    slab_4096_bytes,
-    linked_list_allocator,
+    Slab64Bytes,
+    Slab128Bytes,
+    Slab256Bytes,
+    Slab512Bytes,
+    Slab1024Bytes,
+    Slab2048Bytes,
+    Slab4096Bytes,
+    LinkedListAllocator,
 }
 
 /// A fixed size heap backed by multiple slabs with blocks of different sizes.
@@ -91,14 +91,14 @@ impl Heap {
     /// given address is invalid.
     pub unsafe fn grow(&mut self, mem_start_addr: usize, mem_size: usize, slab: HeapAllocator) {
         match slab {
-            HeapAllocator::slab_64_bytes => self.slab_64_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::slab_128_bytes => self.slab_128_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::slab_256_bytes => self.slab_256_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::slab_512_bytes => self.slab_512_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::slab_1024_bytes => self.slab_1024_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::slab_2048_bytes => self.slab_2048_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::slab_4096_bytes => self.slab_4096_bytes.grow(mem_start_addr, mem_size),
-            HeapAllocator::linked_list_allocator => self.linked_list_allocator.extend(mem_size),
+            HeapAllocator::Slab64Bytes => self.slab_64_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::Slab128Bytes => self.slab_128_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::Slab256Bytes => self.slab_256_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::Slab512Bytes => self.slab_512_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::Slab1024Bytes => self.slab_1024_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::Slab2048Bytes => self.slab_2048_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::Slab4096Bytes => self.slab_4096_bytes.grow(mem_start_addr, mem_size),
+            HeapAllocator::LinkedListAllocator => self.linked_list_allocator.extend(mem_size),
         }
     }
 
