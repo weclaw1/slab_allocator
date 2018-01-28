@@ -1,8 +1,8 @@
-#![feature(unique)]
 #![feature(alloc, allocator_api)]
-#![feature(const_fn)]
 #![feature(attr_literals)]
-#![feature(repr_align)]
+#![feature(const_fn)]
+#![feature(ptr_internals)]
+#![feature(unique)]
 #![no_std]
 
 extern crate alloc;
@@ -85,7 +85,7 @@ impl Heap {
 
     /// Adds memory to the heap. The start address must be valid
     /// and the memory in the `[heap_start_addr, heap_start_addr + heap_size)` range must not be used for
-    /// anything else. 
+    /// anything else.
     /// In case of linked list allocator the memory can only be extended.
     /// This function is unsafe because it can cause undefined behavior if the
     /// given address is invalid.
@@ -151,7 +151,7 @@ impl Heap {
             self.slab_2048_bytes.deallocate(ptr)
         } else if layout.size() <= 4096 && layout.align() <= 4096 {
             self.slab_4096_bytes.deallocate(ptr)
-        } 
+        }
     }
 
     /// Returns bounds on the guaranteed usable size of a successful
