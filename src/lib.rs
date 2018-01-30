@@ -152,6 +152,7 @@ impl Heap {
         }
     }
 
+    ///Finds allocator to use based on layout size and alignment
     pub fn layout_to_allocator(layout: &Layout) -> HeapAllocator {
         if layout.size() > 4096 {
             HeapAllocator::LinkedListAllocator
