@@ -14,7 +14,6 @@ mod slab;
 
 use core::ops::Deref;
 
-
 use slab::Slab;
 use alloc::allocator::{Alloc, AllocErr, Layout};
 
@@ -83,7 +82,7 @@ impl Heap {
     }
 
     /// Adds memory to the heap. The start address must be valid
-    /// and the memory in the `[heap_start_addr, heap_start_addr + heap_size)` range must not be used for
+    /// and the memory in the `[mem_start_addr, mem_start_addr + heap_size)` range must not be used for
     /// anything else.
     /// In case of linked list allocator the memory can only be extended.
     /// This function is unsafe because it can cause undefined behavior if the
@@ -106,24 +105,16 @@ impl Heap {
     /// This function finds the slab of lowest size which can still accomodate the given chunk.
     /// The runtime is in `O(1)` for chunks of size <= 4096, and `O(n)` when chunk size is > 4096,
     pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
-        if layout.size() > 4096 {
-            return self.linked_list_allocator.allocate_first_fit(layout)
-        } else if layout.size() <= 64 && layout.align() <= 64 {
-            return self.slab_64_bytes.allocate(layout)
-        } else if layout.size() <= 128 && layout.align() <= 128 {
-            return self.slab_128_bytes.allocate(layout)
-        } else if layout.size() <= 256 && layout.align() <= 256 {
-            return self.slab_256_bytes.allocate(layout)
-        } else if layout.size() <= 512 && layout.align() <= 512 {
-            return self.slab_512_bytes.allocate(layout)
-        } else if layout.size() <= 1024 && layout.align() <= 1024 {
-            return self.slab_1024_bytes.allocate(layout)
-        } else if layout.size() <= 2048 && layout.align() <= 2048 {
-            return self.slab_2048_bytes.allocate(layout)
-        } else if layout.size() <= 4096 && layout.align() <= 4096 {
-            return self.slab_4096_bytes.allocate(layout)
+        match Heap::layout_to_allocator(&layout) {
+            HeapAllocator::Slab64Bytes => self.slab_64_bytes.allocate(layout),
+            HeapAllocator::Slab128Bytes => self.slab_128_bytes.allocate(layout),
+            HeapAllocator::Slab256Bytes => self.slab_256_bytes.allocate(layout),
+            HeapAllocator::Slab512Bytes => self.slab_512_bytes.allocate(layout),
+            HeapAllocator::Slab1024Bytes => self.slab_1024_bytes.allocate(layout),
+            HeapAllocator::Slab2048Bytes => self.slab_2048_bytes.allocate(layout),
+            HeapAllocator::Slab4096Bytes => self.slab_4096_bytes.allocate(layout),
+            HeapAllocator::LinkedListAllocator => self.linked_list_allocator.allocate_first_fit(layout),
         }
-        Err(AllocErr::Exhausted { request: layout })
     }
 
     /// Frees the given allocation. `ptr` must be a pointer returned
@@ -134,46 +125,50 @@ impl Heap {
     /// with `ptr` address to the list of free blocks.
     /// This operation is in `O(1)` for blocks <= 4096 bytes and `O(n)` for blocks > 4096 bytes.
     pub unsafe fn deallocate(&mut self, ptr: *mut u8, layout: Layout) {
-        if layout.size() > 4096 {
-            self.linked_list_allocator.deallocate(ptr, layout)
-        } else if layout.size() <= 64 && layout.align() <= 64 {
-            self.slab_64_bytes.deallocate(ptr)
-        } else if layout.size() <= 128 && layout.align() <= 128 {
-            self.slab_128_bytes.deallocate(ptr)
-        } else if layout.size() <= 256 && layout.align() <= 256 {
-            self.slab_256_bytes.deallocate(ptr)
-        } else if layout.size() <= 512 && layout.align() <= 512 {
-            self.slab_512_bytes.deallocate(ptr)
-        } else if layout.size() <= 1024 && layout.align() <= 1024 {
-            self.slab_1024_bytes.deallocate(ptr)
-        } else if layout.size() <= 2048 && layout.align() <= 2048 {
-            self.slab_2048_bytes.deallocate(ptr)
-        } else if layout.size() <= 4096 && layout.align() <= 4096 {
-            self.slab_4096_bytes.deallocate(ptr)
+        match Heap::layout_to_allocator(&layout) {
+            HeapAllocator::Slab64Bytes => self.slab_64_bytes.deallocate(ptr),
+            HeapAllocator::Slab128Bytes => self.slab_128_bytes.deallocate(ptr),
+            HeapAllocator::Slab256Bytes => self.slab_256_bytes.deallocate(ptr),
+            HeapAllocator::Slab512Bytes => self.slab_512_bytes.deallocate(ptr),
+            HeapAllocator::Slab1024Bytes => self.slab_1024_bytes.deallocate(ptr),
+            HeapAllocator::Slab2048Bytes => self.slab_2048_bytes.deallocate(ptr),
+            HeapAllocator::Slab4096Bytes => self.slab_4096_bytes.deallocate(ptr),
+            HeapAllocator::LinkedListAllocator => self.linked_list_allocator.deallocate(ptr, layout),
         }
     }
 
     /// Returns bounds on the guaranteed usable size of a successful
     /// allocation created with the specified `layout`.
     pub fn usable_size(&self, layout: &Layout) -> (usize, usize) {
-        if layout.size() <= 32 {
-            (layout.size(), 32)
-        } else if layout.size() <= 64 {
-            (layout.size(), 64)
-        } else if layout.size() <= 128 {
-            (layout.size(), 128)
-        } else if layout.size() <= 256 {
-            (layout.size(), 256)
-        } else if layout.size() <= 512 {
-            (layout.size(), 512)
-        } else if layout.size() <= 1024 {
-            (layout.size(), 1024)
-        } else if layout.size() <= 2048 {
-            (layout.size(), 2048)
-        } else if layout.size() <= 4096 {
-            (layout.size(), 4096)
+        match Heap::layout_to_allocator(&layout) {
+            HeapAllocator::Slab64Bytes => (layout.size(), 64),
+            HeapAllocator::Slab128Bytes => (layout.size(), 128),
+            HeapAllocator::Slab256Bytes => (layout.size(), 256),
+            HeapAllocator::Slab512Bytes => (layout.size(), 512),
+            HeapAllocator::Slab1024Bytes => (layout.size(), 1024),
+            HeapAllocator::Slab2048Bytes => (layout.size(), 2048),
+            HeapAllocator::Slab4096Bytes => (layout.size(), 4096),
+            HeapAllocator::LinkedListAllocator => (layout.size(), layout.size()),
+        }
+    }
+
+    pub fn layout_to_allocator(layout: &Layout) -> HeapAllocator {
+        if layout.size() > 4096 {
+            HeapAllocator::LinkedListAllocator
+        } else if layout.size() <= 64 && layout.align() <= 64 {
+            HeapAllocator::Slab64Bytes
+        } else if layout.size() <= 128 && layout.align() <= 128 {
+            HeapAllocator::Slab128Bytes
+        } else if layout.size() <= 256 && layout.align() <= 256 {
+            HeapAllocator::Slab256Bytes
+        } else if layout.size() <= 512 && layout.align() <= 512 {
+            HeapAllocator::Slab512Bytes
+        } else if layout.size() <= 1024 && layout.align() <= 1024 {
+            HeapAllocator::Slab1024Bytes
+        } else if layout.size() <= 2048 && layout.align() <= 2048 {
+            HeapAllocator::Slab2048Bytes
         } else {
-            (layout.size(), layout.size())
+            HeapAllocator::Slab4096Bytes
         }
     }
 
