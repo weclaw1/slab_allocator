@@ -1,4 +1,3 @@
-use core::ptr::Unique;
 use alloc::allocator::{AllocErr, Layout};
 
 pub struct Slab {
@@ -29,29 +28,29 @@ impl Slab {
 
     pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
         match self.free_block_list.pop() {
-            Some(block) => Ok(block.as_ptr() as *mut u8),
+            Some(block) => Ok(block.addr() as *mut u8),
             None => Err(AllocErr::Exhausted { request: layout }),
         }
     }
 
     pub fn deallocate(&mut self, ptr: *mut u8) {
-        self.free_block_list.push(unsafe { Unique::new_unchecked(ptr as *mut FreeBlock) });
+        let ptr = ptr as *mut FreeBlock;
+        unsafe {self.free_block_list.push(&mut *ptr);}
     }
 
 }
 
 struct FreeBlockList {
     len: usize,
-    head: Option<Unique<FreeBlock>>,
+    head: Option<&'static mut FreeBlock>,
 }
 
 impl FreeBlockList {
     unsafe fn new(start_addr: usize, block_size: usize, num_of_blocks: usize) -> FreeBlockList {
         let mut new_list = FreeBlockList::new_empty();
         for i in (0..num_of_blocks).rev() {
-            new_list.push(Unique::new_unchecked(
-                (start_addr + i * block_size) as *mut FreeBlock,
-            ));
+            let new_block = (start_addr + i * block_size) as *mut FreeBlock;
+            new_list.push(&mut *new_block);
         }
         new_list
     }
@@ -67,20 +66,18 @@ impl FreeBlockList {
         self.len
     }
 
-    fn pop(&mut self) -> Option<Unique<FreeBlock>> {
-        self.head.take().map(|mut node| unsafe {
-            self.head = node.as_mut().next;
+    fn pop(&mut self) -> Option<&'static mut FreeBlock> {
+        self.head.take().map(|node| {
+            self.head = node.next.take();
             self.len -= 1;
             node
         })
     }
  
-    fn push(&mut self, mut free_block: Unique<FreeBlock>) {
-        unsafe {
-            free_block.as_mut().next = self.head.take();
-            self.len += 1;
-            self.head = Some(free_block);
-        }
+    fn push(&mut self, free_block: &'static mut FreeBlock) {
+        free_block.next = self.head.take();
+        self.len += 1;
+        self.head = Some(free_block);
     }
 
     fn is_empty(&self) -> bool {
@@ -96,8 +93,7 @@ impl Drop for FreeBlockList {
 }
 
 struct FreeBlock {
-    next: Option<Unique<FreeBlock>>,
-    size: usize,
+    next: Option<&'static mut FreeBlock>,
 }
 
 impl FreeBlock {

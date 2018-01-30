@@ -1,8 +1,7 @@
 #![feature(alloc, allocator_api)]
 #![feature(attr_literals)]
 #![feature(const_fn)]
-#![feature(ptr_internals)]
-#![feature(unique)]
+#![feature(pointer_methods)]
 #![no_std]
 
 extern crate alloc;
