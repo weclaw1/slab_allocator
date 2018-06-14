@@ -15,6 +15,7 @@ mod slab;
 use core::ops::Deref;
 
 use alloc::allocator::{Alloc, AllocErr, Layout};
+use core::alloc::GlobalAlloc;
 use core::ptr::NonNull;
 use slab::Slab;
 
@@ -246,6 +247,30 @@ unsafe impl<'a> Alloc for &'a LockedHeap {
             heap.usable_size(layout)
         } else {
             panic!("usable_size: heap not initialized");
+        }
+    }
+}
+
+unsafe impl GlobalAlloc for LockedHeap {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if let Some(ref mut heap) = *self.0.lock() {
+            if let Ok(ref mut nnptr) = heap.allocate(layout) {
+                return nnptr.as_ptr();
+            } else {
+                panic!("allocate: failed");
+            }
+        } else {
+            panic!("allocate: heap not initialzied");
+        }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        if let Some(ref mut heap) = *self.0.lock() {
+            if let Some(p) = NonNull::new(ptr) {
+                heap.deallocate(p, layout)
+            }
+        } else {
+            panic!("deallocate: heap not initialized");
         }
     }
 }
