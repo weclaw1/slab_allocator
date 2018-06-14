@@ -1,6 +1,6 @@
-use core::mem::{align_of, size_of};
-use alloc::allocator::Layout;
 use super::*;
+use alloc::allocator::Layout;
+use core::mem::{align_of, size_of};
 
 const HEAP_SIZE: usize = 8 * 4096;
 const BIG_HEAP_SIZE: usize = HEAP_SIZE * 10;
@@ -61,8 +61,8 @@ fn allocate_and_free_double_usize() {
     assert!(addr.is_ok());
     let addr = addr.unwrap();
     unsafe {
-        *(addr as *mut (usize, usize)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
-
+        let pair_addr = addr.as_ptr() as *mut (usize, usize);
+        *pair_addr = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
         heap.deallocate(addr, layout.clone());
     }
 }
@@ -83,7 +83,7 @@ fn reallocate_double_usize() {
         heap.deallocate(y, layout.clone());
     }
 
-    assert_eq!(x as usize, y as usize);
+    assert_eq!(x, y);
 }
 
 #[test]
@@ -99,9 +99,9 @@ fn allocate_multiple_sizes() {
 
     let x = heap.allocate(layout_1.clone()).unwrap();
     let y = heap.allocate(layout_2.clone()).unwrap();
-    assert_eq!(x as usize + 64, y as usize);
+    assert_eq!(unsafe { x.as_ptr().offset(64) }, y.as_ptr());
     let z = heap.allocate(layout_3.clone()).unwrap();
-    assert_eq!(z as usize % (base_size * 8), 0);
+    assert_eq!(z.as_ptr() as usize % (base_size * 8), 0);
 
     unsafe {
         heap.deallocate(x, layout_1.clone());
@@ -109,8 +109,8 @@ fn allocate_multiple_sizes() {
 
     let a = heap.allocate(layout_4.clone()).unwrap();
     let b = heap.allocate(layout_1.clone()).unwrap();
-    assert_eq!(a as usize, x as usize + 4096);
-    assert_eq!(x as usize, b as usize);
+    assert_eq!(a.as_ptr(), unsafe { x.as_ptr().offset(4096) });
+    assert_eq!(x, b);
 
     unsafe {
         heap.deallocate(y, layout_2);
@@ -154,7 +154,7 @@ fn allocate_multiple_4096_blocks() {
 
     let a = heap.allocate(layout.clone()).unwrap();
     let b = heap.allocate(layout.clone()).unwrap();
-    assert_eq!(x as usize + 4096, a as usize);
+    assert_eq!(unsafe { x.as_ptr().offset(4096) }, a.as_ptr());
 
     unsafe {
         heap.deallocate(a, layout.clone());
@@ -163,9 +163,8 @@ fn allocate_multiple_4096_blocks() {
     let c = heap.allocate(layout_2.clone()).unwrap();
     let d = heap.allocate(layout.clone()).unwrap();
     unsafe {
-        *(c as *mut (usize, usize)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
+        *(c.as_ptr() as *mut (usize, usize)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
     }
-    assert_eq!(a as usize + 9 * 4096, c as usize);
-    assert_eq!(b as usize - 4096, d as usize);
-
+    assert_eq!(unsafe { a.as_ptr().offset(9 * 4096) }, c.as_ptr());
+    assert_eq!(unsafe { b.as_ptr().offset(-4096) }, d.as_ptr());
 }

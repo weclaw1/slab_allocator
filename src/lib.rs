@@ -14,8 +14,9 @@ mod slab;
 
 use core::ops::Deref;
 
-use slab::Slab;
 use alloc::allocator::{Alloc, AllocErr, Layout};
+use core::ptr::NonNull;
+use slab::Slab;
 
 use spin::Mutex;
 
@@ -77,7 +78,10 @@ impl Heap {
             slab_1024_bytes: Slab::new(heap_start_addr + 4 * slab_size, slab_size, 1024),
             slab_2048_bytes: Slab::new(heap_start_addr + 5 * slab_size, slab_size, 2048),
             slab_4096_bytes: Slab::new(heap_start_addr + 6 * slab_size, slab_size, 4096),
-            linked_list_allocator: linked_list_allocator::Heap::new(heap_start_addr + 7 * slab_size, slab_size),
+            linked_list_allocator: linked_list_allocator::Heap::new(
+                heap_start_addr + 7 * slab_size,
+                slab_size,
+            ),
         }
     }
 
@@ -104,7 +108,7 @@ impl Heap {
     /// beginning of that chunk if it was successful. Else it returns `Err`.
     /// This function finds the slab of lowest size which can still accomodate the given chunk.
     /// The runtime is in `O(1)` for chunks of size <= 4096, and `O(n)` when chunk size is > 4096,
-    pub fn allocate(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
+    pub fn allocate(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         match Heap::layout_to_allocator(&layout) {
             HeapAllocator::Slab64Bytes => self.slab_64_bytes.allocate(layout),
             HeapAllocator::Slab128Bytes => self.slab_128_bytes.allocate(layout),
@@ -113,7 +117,9 @@ impl Heap {
             HeapAllocator::Slab1024Bytes => self.slab_1024_bytes.allocate(layout),
             HeapAllocator::Slab2048Bytes => self.slab_2048_bytes.allocate(layout),
             HeapAllocator::Slab4096Bytes => self.slab_4096_bytes.allocate(layout),
-            HeapAllocator::LinkedListAllocator => self.linked_list_allocator.allocate_first_fit(layout),
+            HeapAllocator::LinkedListAllocator => {
+                self.linked_list_allocator.allocate_first_fit(layout)
+            }
         }
     }
 
@@ -124,7 +130,7 @@ impl Heap {
     /// This function finds the slab which contains address of `ptr` and adds the blocks beginning
     /// with `ptr` address to the list of free blocks.
     /// This operation is in `O(1)` for blocks <= 4096 bytes and `O(n)` for blocks > 4096 bytes.
-    pub unsafe fn deallocate(&mut self, ptr: *mut u8, layout: Layout) {
+    pub unsafe fn deallocate(&mut self, ptr: NonNull<u8>, layout: Layout) {
         match Heap::layout_to_allocator(&layout) {
             HeapAllocator::Slab64Bytes => self.slab_64_bytes.deallocate(ptr),
             HeapAllocator::Slab128Bytes => self.slab_128_bytes.deallocate(ptr),
@@ -133,7 +139,9 @@ impl Heap {
             HeapAllocator::Slab1024Bytes => self.slab_1024_bytes.deallocate(ptr),
             HeapAllocator::Slab2048Bytes => self.slab_2048_bytes.deallocate(ptr),
             HeapAllocator::Slab4096Bytes => self.slab_4096_bytes.deallocate(ptr),
-            HeapAllocator::LinkedListAllocator => self.linked_list_allocator.deallocate(ptr, layout),
+            HeapAllocator::LinkedListAllocator => {
+                self.linked_list_allocator.deallocate(ptr, layout)
+            }
         }
     }
 
@@ -172,20 +180,15 @@ impl Heap {
             HeapAllocator::Slab4096Bytes
         }
     }
-
 }
 
 unsafe impl Alloc for Heap {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         self.allocate(layout)
     }
 
-    unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
+    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
         self.deallocate(ptr, layout)
-    }
-
-    fn oom(&mut self, err: AllocErr) -> ! {
-        panic!("Out of memory: {:?}", err);
     }
 
     fn usable_size(&self, layout: &Layout) -> (usize, usize) {
@@ -222,7 +225,7 @@ impl Deref for LockedHeap {
 }
 
 unsafe impl<'a> Alloc for &'a LockedHeap {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<*mut u8, AllocErr> {
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         if let Some(ref mut heap) = *self.0.lock() {
             heap.allocate(layout)
         } else {
@@ -230,7 +233,7 @@ unsafe impl<'a> Alloc for &'a LockedHeap {
         }
     }
 
-    unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
+    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
         if let Some(ref mut heap) = *self.0.lock() {
             heap.deallocate(ptr, layout)
         } else {
@@ -244,9 +247,5 @@ unsafe impl<'a> Alloc for &'a LockedHeap {
         } else {
             panic!("usable_size: heap not initialized");
         }
-    }
-
-    fn oom(&mut self, err: AllocErr) -> ! {
-        panic!("Out of memory: {:?}", err);
     }
 }
