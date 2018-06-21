@@ -23,6 +23,17 @@ fn new_heap() -> Heap {
     heap
 }
 
+fn new_locked_heap() -> LockedHeap {
+    let test_heap = TestHeap {
+        heap_space: [0u8; HEAP_SIZE],
+    };
+    let locked_heap = LockedHeap::empty();
+    unsafe {
+        locked_heap.init(&test_heap.heap_space[0] as *const u8 as usize, HEAP_SIZE);
+    }
+    locked_heap
+}
+
 fn new_big_heap() -> Heap {
     let test_heap = TestBigHeap {
         heap_space: [0u8; BIG_HEAP_SIZE],
@@ -117,6 +128,40 @@ fn allocate_multiple_sizes() {
         heap.deallocate(z, layout_3);
         heap.deallocate(a, layout_4);
         heap.deallocate(b, layout_1);
+    }
+}
+
+#[test]
+fn locked_heapallocate_multiple_sizes() {
+    let heap = new_locked_heap();
+    let base_size = size_of::<usize>();
+    let base_align = align_of::<usize>();
+
+    let layout_1 = Layout::from_size_align(base_size * 2, base_align).unwrap();
+    let layout_2 = Layout::from_size_align(base_size * 3, base_align).unwrap();
+    let layout_3 = Layout::from_size_align(base_size * 3, base_align * 8).unwrap();
+    let layout_4 = Layout::from_size_align(base_size * 10, base_align).unwrap();
+
+    let x = unsafe { heap.alloc(layout_1.clone()) };
+    let y = unsafe { heap.alloc(layout_2.clone()) };
+    assert_eq!(unsafe { x.offset(64) }, y);
+    let z = unsafe { heap.alloc(layout_3.clone()) };
+    assert_eq!(z as usize % (base_size * 8), 0);
+
+    unsafe {
+        heap.dealloc(x, layout_1.clone());
+    }
+
+    let a = unsafe { heap.alloc(layout_4.clone()) };
+    let b = unsafe { heap.alloc(layout_1.clone()) };
+    assert_eq!(a, unsafe { x.offset(4096) });
+    assert_eq!(x, b);
+
+    unsafe {
+        heap.dealloc(y, layout_2);
+        heap.dealloc(z, layout_3);
+        heap.dealloc(a, layout_4);
+        heap.dealloc(b, layout_1);
     }
 }
 
