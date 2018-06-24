@@ -204,7 +204,7 @@ impl LockedHeap {
         LockedHeap(Mutex::new(None))
     }
 
-    pub unsafe fn init(&mut self, heap_start_addr: usize, size: usize) {
+    pub unsafe fn init(&self, heap_start_addr: usize, size: usize) {
         *self.0.lock() = Some(Heap::new(heap_start_addr, size));
     }
 
