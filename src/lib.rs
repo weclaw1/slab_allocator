@@ -14,7 +14,7 @@ mod slab;
 
 use core::ops::Deref;
 
-use alloc::allocator::{Alloc, AllocErr, Layout};
+use alloc::alloc::{Alloc, AllocErr, Layout};
 use core::alloc::GlobalAlloc;
 use core::ptr::NonNull;
 use slab::Slab;

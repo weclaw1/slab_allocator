@@ -1,5 +1,5 @@
 use super::*;
-use alloc::allocator::Layout;
+use alloc::alloc::Layout;
 use core::mem::{align_of, size_of};
 
 const HEAP_SIZE: usize = 8 * 4096;
