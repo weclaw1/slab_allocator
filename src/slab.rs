@@ -15,10 +15,6 @@ impl Slab {
         }
     }
 
-    pub fn used_blocks(&self) -> usize {
-        self.free_block_list.len()
-    }
-
     pub unsafe fn grow(&mut self, start_addr: usize, slab_size: usize) {
         let num_of_blocks = slab_size / self.block_size;
         let mut block_list = FreeBlockList::new(start_addr, self.block_size, num_of_blocks);
@@ -30,7 +26,6 @@ impl Slab {
     pub fn allocate(&mut self, _layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         match self.free_block_list.pop() {
             Some(block) => Ok(unsafe { NonNull::new_unchecked(block.addr() as *mut u8) }),
-            //None => Err(AllocErr::Exhausted { request: layout }),
             None => Err(AllocErr),
         }
     }
@@ -62,10 +57,6 @@ impl FreeBlockList {
         FreeBlockList { len: 0, head: None }
     }
 
-    fn len(&self) -> usize {
-        self.len
-    }
-
     fn pop(&mut self) -> Option<&'static mut FreeBlock> {
         self.head.take().map(|node| {
             self.head = node.next.take();
@@ -78,10 +69,6 @@ impl FreeBlockList {
         free_block.next = self.head.take();
         self.len += 1;
         self.head = Some(free_block);
-    }
-
-    fn is_empty(&self) -> bool {
-        self.head.is_none()
     }
 }
 
