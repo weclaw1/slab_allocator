@@ -28,6 +28,7 @@ pub const NUM_OF_SLABS: usize = 8;
 pub const MIN_SLAB_SIZE: usize = 4096;
 pub const MIN_HEAP_SIZE: usize = NUM_OF_SLABS * MIN_SLAB_SIZE;
 
+#[derive(Copy, Clone)]
 pub enum HeapAllocator {
     Slab64Bytes,
     Slab128Bytes,

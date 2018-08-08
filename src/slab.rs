@@ -10,7 +10,7 @@ impl Slab {
     pub unsafe fn new(start_addr: usize, slab_size: usize, block_size: usize) -> Slab {
         let num_of_blocks = slab_size / block_size;
         Slab {
-            block_size: block_size,
+            block_size,
             free_block_list: FreeBlockList::new(start_addr, block_size, num_of_blocks),
         }
     }
@@ -35,11 +35,14 @@ impl Slab {
         }
     }
 
-    pub fn deallocate(&mut self, ptr: NonNull<u8>) {
+    /// Safety: ptr must have been previously allocated by self.
+    pub unsafe fn deallocate(&mut self, ptr: NonNull<u8>) {
+        // Since ptr was allocated by self, its alignment must be at least
+        // the alignment of FreeBlock. Casting a less aligned pointer to
+        // &mut FreeBlock would be undefined behavior.
+        #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
         let ptr = ptr.as_ptr() as *mut FreeBlock;
-        unsafe {
-            self.free_block_list.push(&mut *ptr);
-        }
+        self.free_block_list.push(&mut *ptr);
     }
 }
 
