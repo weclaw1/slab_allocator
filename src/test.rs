@@ -100,8 +100,8 @@ fn reallocate_double_usize() {
 #[test]
 fn allocate_multiple_sizes() {
     let mut heap = new_heap();
-    let base_size = size_of::<usize>();
-    let base_align = align_of::<usize>();
+    let base_size = size_of::<u64>();
+    let base_align = align_of::<u64>();
 
     let layout_1 = Layout::from_size_align(base_size * 2, base_align).unwrap();
     let layout_2 = Layout::from_size_align(base_size * 3, base_align).unwrap();
@@ -132,10 +132,10 @@ fn allocate_multiple_sizes() {
 }
 
 #[test]
-fn locked_heapallocate_multiple_sizes() {
+fn locked_heap_allocate_multiple_sizes() {
     let heap = new_locked_heap();
-    let base_size = size_of::<usize>();
-    let base_align = align_of::<usize>();
+    let base_size = size_of::<u64>();
+    let base_align = align_of::<u64>();
 
     let layout_1 = Layout::from_size_align(base_size * 2, base_align).unwrap();
     let layout_2 = Layout::from_size_align(base_size * 3, base_align).unwrap();
@@ -168,8 +168,8 @@ fn locked_heapallocate_multiple_sizes() {
 #[test]
 fn allocate_one_4096_block() {
     let mut heap = new_big_heap();
-    let base_size = size_of::<usize>();
-    let base_align = align_of::<usize>();
+    let base_size = size_of::<u64>();
+    let base_align = align_of::<u64>();
 
     let layout = Layout::from_size_align(base_size * 512, base_align).unwrap();
 
@@ -183,8 +183,8 @@ fn allocate_one_4096_block() {
 #[test]
 fn allocate_multiple_4096_blocks() {
     let mut heap = new_big_heap();
-    let base_size = size_of::<usize>();
-    let base_align = align_of::<usize>();
+    let base_size = size_of::<u64>();
+    let base_align = align_of::<u64>();
 
     let layout = Layout::from_size_align(base_size * 512, base_align).unwrap();
     let layout_2 = Layout::from_size_align(base_size * 1024, base_align).unwrap();
@@ -208,8 +208,23 @@ fn allocate_multiple_4096_blocks() {
     let c = heap.allocate(layout_2.clone()).unwrap();
     let d = heap.allocate(layout.clone()).unwrap();
     unsafe {
-        *(c.as_ptr() as *mut (usize, usize)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
+        *(c.as_ptr() as *mut (u64, u64)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
     }
     assert_eq!(unsafe { a.as_ptr().offset(9 * 4096) }, c.as_ptr());
     assert_eq!(unsafe { b.as_ptr().offset(-4096) }, d.as_ptr());
+}
+
+#[test]
+fn allocate_one_8192_block() {
+    let mut heap = new_big_heap();
+    let base_size = size_of::<u64>();
+    let base_align = align_of::<u64>();
+
+    let layout = Layout::from_size_align(base_size * 1024, base_align).unwrap();
+
+    let x = heap.allocate(layout.clone()).unwrap();
+
+    unsafe {
+        heap.deallocate(x, layout.clone());
+    }
 }

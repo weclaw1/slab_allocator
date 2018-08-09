@@ -48,16 +48,12 @@ struct FreeBlockList {
 
 impl FreeBlockList {
     unsafe fn new(start_addr: usize, block_size: usize, num_of_blocks: usize) -> FreeBlockList {
-        let mut new_list = FreeBlockList::new_empty();
+        let mut new_list = FreeBlockList { len: 0, head: None };
         for i in (0..num_of_blocks).rev() {
             let new_block = (start_addr + i * block_size) as *mut FreeBlock;
             new_list.push(&mut *new_block);
         }
         new_list
-    }
-
-    fn new_empty() -> FreeBlockList {
-        FreeBlockList { len: 0, head: None }
     }
 
     fn pop(&mut self) -> Option<&'static mut FreeBlock> {
