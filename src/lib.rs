@@ -1,7 +1,5 @@
 #![feature(alloc, allocator_api)]
-#![feature(attr_literals)]
 #![feature(const_fn)]
-#![feature(pointer_methods)]
 #![no_std]
 
 extern crate alloc;

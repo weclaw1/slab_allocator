@@ -1,6 +1,6 @@
 [package]
 name = "slab_allocator"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["Robert Węcławski <r.weclawski@gmail.com>"]
 license = "MIT"
 
@@ -11,4 +11,4 @@ repository = "https://github.com/weclaw1/slab_allocator"
 
 [dependencies]
 linked_list_allocator = "0.6.3"
-spin = "0.4.8"
+spin = "0.4.9"
