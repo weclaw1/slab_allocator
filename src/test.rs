@@ -74,7 +74,7 @@ fn allocate_and_free_double_usize() {
     unsafe {
         let pair_addr = addr.as_ptr() as *mut (usize, usize);
         *pair_addr = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
-        heap.deallocate(addr, layout.clone());
+        heap.deallocate(addr.as_non_null_ptr(), layout.clone());
     }
 }
 
@@ -86,12 +86,12 @@ fn reallocate_double_usize() {
 
     let x = heap.allocate(layout.clone()).unwrap();
     unsafe {
-        heap.deallocate(x, layout.clone());
+        heap.deallocate(x.as_non_null_ptr(), layout.clone());
     }
 
     let y = heap.allocate(layout.clone()).unwrap();
     unsafe {
-        heap.deallocate(y, layout.clone());
+        heap.deallocate(y.as_non_null_ptr(), layout.clone());
     }
 
     assert_eq!(x, y);
@@ -110,24 +110,29 @@ fn allocate_multiple_sizes() {
 
     let x = heap.allocate(layout_1.clone()).unwrap();
     let y = heap.allocate(layout_2.clone()).unwrap();
-    assert_eq!(unsafe { x.as_ptr().offset(64) }, y.as_ptr());
+    assert_eq!(
+        unsafe { x.as_non_null_ptr().as_ptr().offset(64) },
+        y.as_non_null_ptr().as_ptr()
+    );
     let z = heap.allocate(layout_3.clone()).unwrap();
-    assert_eq!(z.as_ptr() as usize % (base_size * 8), 0);
+    assert_eq!(z.as_non_null_ptr().as_ptr() as usize % (base_size * 8), 0);
 
     unsafe {
-        heap.deallocate(x, layout_1.clone());
+        heap.deallocate(x.as_non_null_ptr(), layout_1.clone());
     }
 
     let a = heap.allocate(layout_4.clone()).unwrap();
     let b = heap.allocate(layout_1.clone()).unwrap();
-    assert_eq!(a.as_ptr(), unsafe { x.as_ptr().offset(4096) });
+    assert_eq!(a.as_non_null_ptr().as_ptr(), unsafe {
+        x.as_non_null_ptr().as_ptr().offset(4096)
+    });
     assert_eq!(x, b);
 
     unsafe {
-        heap.deallocate(y, layout_2);
-        heap.deallocate(z, layout_3);
-        heap.deallocate(a, layout_4);
-        heap.deallocate(b, layout_1);
+        heap.deallocate(y.as_non_null_ptr(), layout_2);
+        heap.deallocate(z.as_non_null_ptr(), layout_3);
+        heap.deallocate(a.as_non_null_ptr(), layout_4);
+        heap.deallocate(b.as_non_null_ptr(), layout_1);
     }
 }
 
@@ -176,7 +181,7 @@ fn allocate_one_4096_block() {
     let x = heap.allocate(layout.clone()).unwrap();
 
     unsafe {
-        heap.deallocate(x, layout.clone());
+        heap.deallocate(x.as_non_null_ptr(), layout.clone());
     }
 }
 
@@ -194,24 +199,33 @@ fn allocate_multiple_4096_blocks() {
     let z = heap.allocate(layout.clone()).unwrap();
 
     unsafe {
-        heap.deallocate(y, layout.clone());
+        heap.deallocate(y.as_non_null_ptr(), layout.clone());
     }
 
     let a = heap.allocate(layout.clone()).unwrap();
     let b = heap.allocate(layout.clone()).unwrap();
-    assert_eq!(unsafe { x.as_ptr().offset(4096) }, a.as_ptr());
+    assert_eq!(
+        unsafe { x.as_non_null_ptr().as_ptr().offset(4096) },
+        a.as_non_null_ptr().as_ptr()
+    );
 
     unsafe {
-        heap.deallocate(a, layout.clone());
-        heap.deallocate(z, layout.clone());
+        heap.deallocate(a.as_non_null_ptr(), layout.clone());
+        heap.deallocate(z.as_non_null_ptr(), layout.clone());
     }
     let c = heap.allocate(layout_2.clone()).unwrap();
     let d = heap.allocate(layout.clone()).unwrap();
     unsafe {
         *(c.as_ptr() as *mut (u64, u64)) = (0xdeafdeadbeafbabe, 0xdeafdeadbeafbabe);
     }
-    assert_eq!(unsafe { a.as_ptr().offset(9 * 4096) }, c.as_ptr());
-    assert_eq!(unsafe { b.as_ptr().offset(-4096) }, d.as_ptr());
+    assert_eq!(
+        unsafe { a.as_non_null_ptr().as_ptr().offset(9 * 4096) },
+        c.as_non_null_ptr().as_ptr()
+    );
+    assert_eq!(
+        unsafe { b.as_non_null_ptr().as_ptr().offset(-4096) },
+        d.as_non_null_ptr().as_ptr()
+    );
 }
 
 #[test]
@@ -225,6 +239,6 @@ fn allocate_one_8192_block() {
     let x = heap.allocate(layout.clone()).unwrap();
 
     unsafe {
-        heap.deallocate(x, layout.clone());
+        heap.deallocate(x.as_non_null_ptr(), layout.clone());
     }
 }
