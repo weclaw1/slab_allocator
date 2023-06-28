@@ -1,5 +1,6 @@
-#![feature(alloc, allocator_api)]
-#![feature(const_fn)]
+// #![feature(alloc, allocator_api)]
+#![feature(allocator_api)]
+// #![feature(const_fn)]
 #![no_std]
 
 extern crate alloc;
@@ -12,9 +13,10 @@ mod slab;
 
 use core::ops::Deref;
 
-use alloc::alloc::{Alloc, AllocErr, Layout};
+use alloc::alloc::{Allocator, AllocError, Layout};
 use core::alloc::GlobalAlloc;
 use core::ptr::NonNull;
+use core::convert::TryInto;
 use slab::Slab;
 
 use spin::Mutex;
@@ -70,6 +72,8 @@ impl Heap {
             "Heap size should be a multiple of minimum heap size"
         );
         let slab_size = heap_size / NUM_OF_SLABS;
+		let mut heap_bottom: u8 = (heap_start_addr + 7 * slab_size).try_into().unwrap();
+		let heap_bottom_ptr: *mut u8 = &mut heap_bottom;
         Heap {
             slab_64_bytes: Slab::new(heap_start_addr, slab_size, 64),
             slab_128_bytes: Slab::new(heap_start_addr + slab_size, slab_size, 128),
@@ -79,7 +83,7 @@ impl Heap {
             slab_2048_bytes: Slab::new(heap_start_addr + 5 * slab_size, slab_size, 2048),
             slab_4096_bytes: Slab::new(heap_start_addr + 6 * slab_size, slab_size, 4096),
             linked_list_allocator: linked_list_allocator::Heap::new(
-                heap_start_addr + 7 * slab_size,
+                (heap_bottom_ptr).try_into().unwrap(),
                 slab_size,
             ),
         }
@@ -108,7 +112,7 @@ impl Heap {
     /// beginning of that chunk if it was successful. Else it returns `Err`.
     /// This function finds the slab of lowest size which can still accomodate the given chunk.
     /// The runtime is in `O(1)` for chunks of size <= 4096, and `O(n)` when chunk size is > 4096,
-    pub fn allocate(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub fn allocate(&mut self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         match Heap::layout_to_allocator(&layout) {
             HeapAllocator::Slab64Bytes => self.slab_64_bytes.allocate(layout),
             HeapAllocator::Slab128Bytes => self.slab_128_bytes.allocate(layout),
@@ -117,9 +121,12 @@ impl Heap {
             HeapAllocator::Slab1024Bytes => self.slab_1024_bytes.allocate(layout),
             HeapAllocator::Slab2048Bytes => self.slab_2048_bytes.allocate(layout),
             HeapAllocator::Slab4096Bytes => self.slab_4096_bytes.allocate(layout),
-            HeapAllocator::LinkedListAllocator => {
-                self.linked_list_allocator.allocate_first_fit(layout)
-            }
+			HeapAllocator::LinkedListAllocator => {
+				let result =
+				self.linked_list_allocator.allocate_first_fit(layout).map_err(|_|
+				core::alloc::AllocError)?;
+				Ok(NonNull::slice_from_raw_parts(result, layout.size()))
+			}
         }
     }
 
@@ -182,20 +189,6 @@ impl Heap {
     }
 }
 
-unsafe impl Alloc for Heap {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        self.allocate(layout)
-    }
-
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        self.deallocate(ptr, layout)
-    }
-
-    fn usable_size(&self, layout: &Layout) -> (usize, usize) {
-        self.usable_size(layout)
-    }
-}
-
 pub struct LockedHeap(Mutex<Option<Heap>>);
 
 impl LockedHeap {
@@ -224,23 +217,25 @@ impl Deref for LockedHeap {
     }
 }
 
-unsafe impl<'a> Alloc for &'a LockedHeap {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+unsafe impl<'a> Allocator for &'a LockedHeap {
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         if let Some(ref mut heap) = *self.0.lock() {
-            heap.allocate(layout)
+            Ok(heap.allocate(layout)?)
         } else {
             panic!("allocate: heap not initialized");
         }
     }
 
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         if let Some(ref mut heap) = *self.0.lock() {
             heap.deallocate(ptr, layout)
         } else {
             panic!("deallocate: heap not initialized");
         }
     }
+}
 
+impl<'a> LockedHeap {
     fn usable_size(&self, layout: &Layout) -> (usize, usize) {
         if let Some(ref mut heap) = *self.0.lock() {
             heap.usable_size(layout)
@@ -254,7 +249,7 @@ unsafe impl GlobalAlloc for LockedHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if let Some(ref mut heap) = *self.0.lock() {
             if let Ok(ref mut nnptr) = heap.allocate(layout) {
-                return nnptr.as_ptr();
+                return nnptr.as_ptr() as *mut u8;
             } else {
                 panic!("allocate: failed");
             }
