@@ -1,4 +1,4 @@
-use alloc::alloc::{AllocErr, Layout};
+use alloc::alloc::{AllocError, Layout};
 use core::ptr::NonNull;
 
 pub struct Slab {
@@ -23,10 +23,13 @@ impl Slab {
         }
     }
 
-    pub fn allocate(&mut self, _layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub fn allocate(&mut self, _layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         match self.free_block_list.pop() {
-            Some(block) => Ok(unsafe { NonNull::new_unchecked(block.addr() as *mut u8) }),
-            None => Err(AllocErr),
+            Some(block) => Ok(
+				NonNull::slice_from_raw_parts(
+				NonNull::new(block.addr() as *mut u8).unwrap(),
+				self.block_size)),
+            None => Err(AllocError),
         }
     }
 
