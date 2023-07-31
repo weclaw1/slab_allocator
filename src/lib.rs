@@ -2,6 +2,7 @@
 #![feature(allocator_api)]
 // #![feature(const_fn)]
 #![no_std]
+#![allow(dead_code)]
 
 extern crate alloc;
 
